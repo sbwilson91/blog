@@ -1,0 +1,621 @@
+---
+title: Plotting Strava Data
+author: 'Sean Wilson'
+date: "2022-01-01"
+slug: plotting-strava-data
+categories: ["R"]
+tags: ["R", "Strava", "lubridate", "ggplot"]
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<div id="what-is-this" class="section level1">
+<h1>What is this?</h1>
+<p>As an avid sportman, lover of data metrics and a user of R, I decided that the best way to relax over the holidays was to try graphing my running and riding stats from the last year. I’ll let you decide if it’s a worthwhile holiday activity or not. After a bit of work getting the data and then mucking around with the graphs I thought to make the work available for any other hobbyist in this particular niche. <br>
+<br>
+I’ll run through the specifics of the data in more detail when needed throughout the workflow. A quick intro: Sean Wilson, PhD candidate at University of Melbourne, Australia studying life sciences, stem cells and bioinformatics. I have a <a href="www.twitter.com/sbwil91">twitter</a> if that appeals to you.<br>
+<br></p>
+<div id="downloading-the-data-from-strava" class="section level2">
+<h2>Downloading the data from Strava</h2>
+<p>I’ve been tracking my runs and rides with Strava for a while now, although I recently switched to using the <a href="">GearTracker</a> app on my Gear watch - my personal experience is that the Strava app itself on the watch was a bit temperamental but the GearTracker app is fantastic and works through the Strava API meaning the data syncs with Strava.<br>
+<br>
+The Strava website has solid instructions on how to <a href="https://support.strava.com/hc/en-us/articles/216918437-Exporting-your-Data-and-Bulk-Export">download your personal data</a>. <br>
+<br>
+Once downloaded, there are many files however the key one needed is the <code>activities.csv</code> file which contained all the key metrics from recorded runs. You could also utilise the .tcx or .gpx files which contain location data however I didn’t dive into that this time around… maybe next holidays!</p>
+<pre class="r"><code>library(tidyverse)</code></pre>
+<pre><code>## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --</code></pre>
+<pre><code>## v ggplot2 3.3.5     v purrr   0.3.4
+## v tibble  3.1.6     v dplyr   1.0.7
+## v tidyr   1.1.4     v stringr 1.4.0
+## v readr   2.1.1     v forcats 0.5.1</code></pre>
+<pre><code>## Warning: package &#39;tibble&#39; was built under R version 4.1.2</code></pre>
+<pre><code>## Warning: package &#39;readr&#39; was built under R version 4.1.2</code></pre>
+<pre><code>## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
+## x dplyr::filter() masks stats::filter()
+## x dplyr::lag()    masks stats::lag()</code></pre>
+<pre class="r"><code>library(lubridate)</code></pre>
+<pre><code>## 
+## Attaching package: &#39;lubridate&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     date, intersect, setdiff, union</code></pre>
+<pre class="r"><code>library(patchwork)</code></pre>
+<pre><code>## Warning: package &#39;patchwork&#39; was built under R version 4.1.2</code></pre>
+<pre class="r"><code>strava &lt;- read_csv(&quot;~/export_40721577/activities.csv&quot;)</code></pre>
+<pre><code>## New names:
+## * `Elapsed Time` -&gt; `Elapsed Time...6`
+## * Distance -&gt; Distance...7
+## * `Max Heart Rate` -&gt; `Max Heart Rate...8`
+## * `Relative Effort` -&gt; `Relative Effort...9`
+## * Commute -&gt; Commute...10
+## * ...</code></pre>
+<pre><code>## Rows: 625 Columns: 83</code></pre>
+<pre><code>## -- Column specification --------------------------------------------------------
+## Delimiter: &quot;,&quot;
+## chr  (5): Activity Date, Activity Name, Activity Type, Activity Description,...
+## dbl (50): Activity ID, Elapsed Time...6, Distance...7, Max Heart Rate...8, R...
+## lgl (28): Commute...10, Activity Gear, Athlete Weight, Bike Weight, Average ...</code></pre>
+<pre><code>## 
+## i Use `spec()` to retrieve the full column specification for this data.
+## i Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
+<pre class="r"><code>head(strava, 5)</code></pre>
+<pre><code>## # A tibble: 5 x 83
+##   `Activity ID` `Activity Date` `Activity Name` `Activity Type` `Activity Descr~
+##           &lt;dbl&gt; &lt;chr&gt;           &lt;chr&gt;           &lt;chr&gt;           &lt;chr&gt;           
+## 1    2265423825 Apr 4, 2019, 8~ Morning Ride    Ride            &lt;NA&gt;            
+## 2    2266102015 Apr 5, 2019, 6~ Afternoon Ride  Ride            &lt;NA&gt;            
+## 3    2270423641 Apr 6, 2019, 1~ Morning Ride    Ride            &lt;NA&gt;            
+## 4    2270561541 Apr 7, 2019, 1~ Lunch Ride      Ride            &lt;NA&gt;            
+## 5    2273434883 Apr 7, 2019, 9~ Morning Ride    Ride            &lt;NA&gt;            
+## # ... with 78 more variables: Elapsed Time...6 &lt;dbl&gt;, Distance...7 &lt;dbl&gt;,
+## #   Max Heart Rate...8 &lt;dbl&gt;, Relative Effort...9 &lt;dbl&gt;, Commute...10 &lt;lgl&gt;,
+## #   Activity Gear &lt;lgl&gt;, Filename &lt;chr&gt;, Athlete Weight &lt;lgl&gt;,
+## #   Bike Weight &lt;lgl&gt;, Elapsed Time...15 &lt;dbl&gt;, Moving Time &lt;dbl&gt;,
+## #   Distance...17 &lt;dbl&gt;, Max Speed &lt;dbl&gt;, Average Speed &lt;dbl&gt;,
+## #   Elevation Gain &lt;dbl&gt;, Elevation Loss &lt;dbl&gt;, Elevation Low &lt;dbl&gt;,
+## #   Elevation High &lt;dbl&gt;, Max Grade &lt;dbl&gt;, Average Grade &lt;dbl&gt;, ...</code></pre>
+</div>
+<div id="explore-and-clean" class="section level2">
+<h2>Explore and Clean</h2>
+<p>The dataframe contains 83 columns to explore. A quick scan shows many of these lack any information at all, so I would be best served to remove those.</p>
+<pre class="r"><code>strava &lt;- Filter(function(x)!all(is.na(x)), strava)</code></pre>
+<p>I also noticed that some of the times are a bit off; while I have done a couple of activites at odd hours, there were clearly too many. The recorded time was not local time, instead 11 hours behind. This meant I had to add 11 hours when utilising <code>lubridate</code> for the datetime column.</p>
+<pre class="r"><code>strava$`Activity Date` &lt;- lubridate::mdy_hms(strava$`Activity Date`, tz = &quot;Australia/Sydney&quot;) +
+  lubridate::hours(11)</code></pre>
+<pre><code>## Warning: 1 failed to parse.</code></pre>
+<pre class="r"><code># filter all events prior to 2021, also filter to include only runs and rides
+strava &lt;- strava %&gt;% filter(`Activity Date` &gt; &quot;2021-01-01&quot;, `Activity Type` %in% c(&quot;Run&quot;, &quot;Ride&quot;))</code></pre>
+<p>Now for the tricky stuff: getting the date/time set up correctly. Lubridate is a fantastic package, just need to tweak a few things. <br>
+From what I could gather, it’s hard to extract the time component from the datetime due to the way it’s coded as a POSIXct or POSIXlt class object. The work around I used was to extract just the time while setting a single day to those times.</p>
+<pre class="r"><code>time &lt;- hms::hms(second(strava$`Activity Date`), minute(strava$`Activity Date`), hour(strava$`Activity Date`))
+time &lt;- as.POSIXct(time)
+strava$Time &lt;- time
+head(strava$Time)</code></pre>
+<pre><code>## [1] &quot;1970-01-01 18:31:49 UTC&quot; &quot;1970-01-01 19:56:00 UTC&quot;
+## [3] &quot;1970-01-01 20:00:40 UTC&quot; &quot;1970-01-01 11:53:31 UTC&quot;
+## [5] &quot;1970-01-01 16:08:38 UTC&quot; &quot;1970-01-01 13:17:12 UTC&quot;</code></pre>
+<p>I’m ignoring that it’s in UTC timezone format and a date from well before I was born, that doesn’t matter. This gives the chance for a first plot, a visual look at when I’m most active.</p>
+<pre class="r"><code>time_density_cart &lt;- ggplot(strava, aes(Time)) + 
+  geom_histogram(fill = &quot;black&quot;, alpha = 0.5) + 
+    scale_x_datetime(date_breaks = &quot;6 hours&quot;, date_labels = &quot;%H:%M&quot;) 
+
+time_density_polar &lt;- ggplot(strava, aes(Time)) + 
+  geom_density(fill = &quot;green&quot;, alpha = 0.5) + 
+    scale_x_datetime(date_breaks = &quot;1 hours&quot;, date_labels = &quot;%H:%M&quot;) +
+  coord_polar()
+
+time_density_cart + time_density_polar</code></pre>
+<pre><code>## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-6-1.png" width="864" />
+I tried to be clever with the second plot by using polar coordinates to replicate a clock - not a perfect result but not bad! The peaks align with mid-morning and early evening, pretty standard times to be active. <br>
+<br>
+What variables have been recorded?</p>
+<pre class="r"><code>colnames(strava)</code></pre>
+<pre><code>##  [1] &quot;Activity ID&quot;                                                                                                                                                                 
+##  [2] &quot;Activity Date&quot;                                                                                                                                                               
+##  [3] &quot;Activity Name&quot;                                                                                                                                                               
+##  [4] &quot;Activity Type&quot;                                                                                                                                                               
+##  [5] &quot;Activity Description&quot;                                                                                                                                                        
+##  [6] &quot;Elapsed Time...6&quot;                                                                                                                                                            
+##  [7] &quot;Distance...7&quot;                                                                                                                                                                
+##  [8] &quot;Max Heart Rate...8&quot;                                                                                                                                                          
+##  [9] &quot;Relative Effort...9&quot;                                                                                                                                                         
+## [10] &quot;Commute...10&quot;                                                                                                                                                                
+## [11] &quot;Filename&quot;                                                                                                                                                                    
+## [12] &quot;Elapsed Time...15&quot;                                                                                                                                                           
+## [13] &quot;Moving Time&quot;                                                                                                                                                                 
+## [14] &quot;Distance...17&quot;                                                                                                                                                               
+## [15] &quot;Max Speed&quot;                                                                                                                                                                   
+## [16] &quot;Average Speed&quot;                                                                                                                                                               
+## [17] &quot;Elevation Gain&quot;                                                                                                                                                              
+## [18] &quot;Elevation Loss&quot;                                                                                                                                                              
+## [19] &quot;Elevation Low&quot;                                                                                                                                                               
+## [20] &quot;Elevation High&quot;                                                                                                                                                              
+## [21] &quot;Max Grade&quot;                                                                                                                                                                   
+## [22] &quot;Average Grade&quot;                                                                                                                                                               
+## [23] &quot;Max Cadence&quot;                                                                                                                                                                 
+## [24] &quot;Average Cadence&quot;                                                                                                                                                             
+## [25] &quot;Max Heart Rate...30&quot;                                                                                                                                                         
+## [26] &quot;Average Heart Rate&quot;                                                                                                                                                          
+## [27] &quot;Average Watts&quot;                                                                                                                                                               
+## [28] &quot;Calories&quot;                                                                                                                                                                    
+## [29] &quot;Relative Effort...37&quot;                                                                                                                                                        
+## [30] &quot;Prefer Perceived Exertion&quot;                                                                                                                                                   
+## [31] &quot;Commute...50&quot;                                                                                                                                                                
+## [32] &quot;From Upload&quot;                                                                                                                                                                 
+## [33] &quot;Grade Adjusted Distance&quot;                                                                                                                                                     
+## [34] &quot;Weather Observation Time&quot;                                                                                                                                                    
+## [35] &quot;Weather Condition&quot;                                                                                                                                                           
+## [36] &quot;Weather Temperature&quot;                                                                                                                                                         
+## [37] &quot;Apparent Temperature&quot;                                                                                                                                                        
+## [38] &quot;Dewpoint&quot;                                                                                                                                                                    
+## [39] &quot;Humidity&quot;                                                                                                                                                                    
+## [40] &quot;Weather Pressure&quot;                                                                                                                                                            
+## [41] &quot;Wind Speed&quot;                                                                                                                                                                  
+## [42] &quot;Wind Gust&quot;                                                                                                                                                                   
+## [43] &quot;Wind Bearing&quot;                                                                                                                                                                
+## [44] &quot;Precipitation Intensity&quot;                                                                                                                                                     
+## [45] &quot;Sunrise Time&quot;                                                                                                                                                                
+## [46] &quot;Sunset Time&quot;                                                                                                                                                                 
+## [47] &quot;Moon Phase&quot;                                                                                                                                                                  
+## [48] &quot;Precipitation Probability&quot;                                                                                                                                                   
+## [49] &quot;Precipitation Type&quot;                                                                                                                                                          
+## [50] &quot;Cloud Cover&quot;                                                                                                                                                                 
+## [51] &quot;Weather Visibility&quot;                                                                                                                                                          
+## [52] &quot;UV Index&quot;                                                                                                                                                                    
+## [53] &quot;Weather Ozone&quot;                                                                                                                                                               
+## [54] &quot;&lt;span class=\&quot;translation_missing\&quot; title=\&quot;translation missing: en-US.lib.export.portability_exporter.activities.horton_values.flagged\&quot;&gt;Flagged&lt;/span&gt;&quot;                    
+## [55] &quot;&lt;span class=\&quot;translation_missing\&quot; title=\&quot;translation missing: en-US.lib.export.portability_exporter.activities.horton_values.avg_elapsed_speed\&quot;&gt;Avg Elapsed Speed&lt;/span&gt;&quot;
+## [56] &quot;&lt;span class=\&quot;translation_missing\&quot; title=\&quot;translation missing: en-US.lib.export.portability_exporter.activities.horton_values.dirt_distance\&quot;&gt;Dirt Distance&lt;/span&gt;&quot;        
+## [57] &quot;Time&quot;</code></pre>
+<p>Some interesting variables collected here. There are a few duplicated columns such as <code>Distance...7</code> and <code>Distance...17</code> which I think is due to the use of <code>GearTracker</code>. I’ll investigate these and clean them up.</p>
+<pre class="r"><code># Distance
+table(is.na(strava$Distance...7), is.na(strava$Distance...17))</code></pre>
+<pre><code>##        
+##         FALSE
+##   FALSE   432</code></pre>
+<pre class="r"><code>tail(strava$Distance...7,5)</code></pre>
+<pre><code>## [1]  7.19  2.03 12.39  5.39  3.21</code></pre>
+<pre class="r"><code>tail(strava$Distance...17,5)</code></pre>
+<pre><code>## [1]  7193.9  2034.7 12393.0  5389.9  3210.2</code></pre>
+<pre class="r"><code># One has recorded in Metres (M) while the other in kilometres (KM)
+
+# Elapsed time
+table(strava$`Elapsed Time...6`==strava$`Elapsed Time...15`)</code></pre>
+<pre><code>## 
+## TRUE 
+##  432</code></pre>
+<pre class="r"><code># Max Heart Rate
+table(is.na(strava$`Max Heart Rate...8`), is.na(strava$`Max Heart Rate...30`))</code></pre>
+<pre><code>##        
+##         TRUE
+##   FALSE   86
+##   TRUE   346</code></pre>
+<pre class="r"><code>is.na(strava$`Max Heart Rate...30`) %&gt;% table()</code></pre>
+<pre><code>## .
+## TRUE 
+##  432</code></pre>
+<pre class="r"><code># relative effort
+is.na(strava$`Relative Effort...37`) %&gt;% table()</code></pre>
+<pre><code>## .
+## FALSE  TRUE 
+##    86   346</code></pre>
+<pre class="r"><code>is.na(strava$`Relative Effort...9`) %&gt;% table()</code></pre>
+<pre><code>## .
+## FALSE  TRUE 
+##    86   346</code></pre>
+<pre class="r"><code>table(strava$`Relative Effort...9`==strava$`Relative Effort...37`)</code></pre>
+<pre><code>## 
+## TRUE 
+##   86</code></pre>
+<pre class="r"><code># fix table
+
+# remove the last couple of columns
+strava &lt;- strava[,1:53]
+
+# set correct columns for replicate variables
+strava &lt;- strava %&gt;% mutate(Distance = Distance...17,
+                            `Elapsed Time` = `Elapsed Time...6`,
+                            `Max Heart Rate` = `Max Heart Rate...8`,
+                            `Relative Effort` = `Relative Effort...9`)
+strava &lt;- strava %&gt;% filter(Distance &gt; 1000)</code></pre>
+<p>Sweet, now I have a data frame containing all my run and ride activities for 2021. Let’s plot some graphs!</p>
+</div>
+</div>
+<div id="visualisations" class="section level1">
+<h1>Visualisations</h1>
+<div id="riding-for-the-850-challenge" class="section level2">
+<h2>Riding for the 850 challenge</h2>
+<p>The focus of my stem cell research is developing kidney organoids with the ultimate aim of contributing to the treatment of kidney diseases. I was involved in the <code>#850challenge</code> which was to complete 850 miles of activity to raise awareness of the 850 million people worldwide with kidney diseases. That’s 1368km metric. I tracked my rides this year with the goal of completing that challenge, let’s see how I did.</p>
+<pre class="r"><code>rides.2021 &lt;- strava %&gt;% filter(`Activity Type` == &quot;Ride&quot;) %&gt;%
+  mutate(Group = cut(Distance, c(0, 4999, 9999, Inf),
+                     labels = c(&quot;0km-5km&quot;, &quot;5km-10km&quot;, &quot;10km+&quot;)),
+         TotalDist = cumsum(Distance)) %&gt;% ggplot() +
+  geom_point(aes(`Activity Date`, Distance/1000, colour = Group), size = 3, alpha = 0.6) +
+  geom_line(aes(`Activity Date`, TotalDist/100000), colour = &quot;orange&quot;, size = 2) +
+  geom_hline(yintercept = 1368/100) +
+  scale_y_continuous(
+    # Features of the first axis
+    name = &quot;Ride Distance (KM)&quot;,
+    # Add a second axis and specify its features
+    sec.axis = sec_axis( trans=~.*100, name=&quot;Total Distance (KM)&quot;)
+  ) +
+  xlab(&quot;Date&quot;) + ylab(&quot;Distance (KM)&quot;) +
+  coord_cartesian(ylim = c(0, 22)) +
+  theme_bw()
+rides.2021</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-9-1.png" width="864" />
+I broke up the rides into distance groups using the <code>cut</code> function. Also added the cumulative distance for the rides as a line graph with the right y-axis; this required some maths to transform the cumulative distance value as it plots against the left y-axis. You can see how that was done in the function call. As you can see, there is a lot of rides in that 0km-5km range. I live 3km from the lab and 3.5km from my cricket club, my two main destinations. <br>
+<br>
+Using the <a href="https://cran.r-project.org/web/packages/ggExtra/vignettes/ggExtra.html"><code>ggExtra</code> package</a> we can add density/distribution information to the edges of the plot.</p>
+<pre class="r"><code>rides.extra &lt;- ggExtra::ggMarginal((rides.2021 + ggtitle(&quot;Riding the #850challenge in 2021&quot;) +  # uses the existing graph
+                                      scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, # sets axis breaks
+                                                       date_labels = &quot;%b&quot;, # changes the x axis labels; %m would give the mont numbers not names
+                                                       limits = as.POSIXct(c(&quot;2021-01-01&quot;, &quot;2021-12-31&quot;))) + 
+                                      coord_cartesian(expand = F, ylim = c(0,22))+ #limits and this line fix the margins to tidy up the graph
+                                      theme(legend.position = &quot;bottom&quot;,
+                                            plot.title = element_text(hjust = 0.5, size = 30))), 
+                                   type = &quot;histogram&quot;, margins = &quot;x&quot;) </code></pre>
+<pre><code>## Coordinate system already present. Adding new coordinate system, which will replace the existing one.</code></pre>
+<pre class="r"><code>rides.extra</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-10-1.png" width="864" />
+There, I’m quite happy with this! It tracks the rides throughout the year, how the distance progressed to hitting the goal as shown by the black line early in December. That dip in the middle is when I was stuck in a lockdown while visiting my parents, who live 4 hours from Melbourne. The histogram showing distance per rides didn’t look great so I decided it wasn’t needed - its clear where most of the rides lie.<br>
+<br>
+Notice that patch of green dots around May - I house/dog sat for a few weeks so had a different ride to/from work. It’s kind of neat to see those kinds of events represented in this chart. At least I think so.<br>
+<br>
+I think that’s pretty cool, hopefully the comments in the code make sense so you can see how I worked with <code>ggplot</code> and <code>lubridate</code> to get this graph looking “schmick” as my Dad would say.</p>
+</div>
+<div id="run-run-as-fast-as-you-can" class="section level2">
+<h2>Run, Run, as fast as you can</h2>
+<p>The real interest for me with this data was investigating my running this year. Lets repeat the ride graph but with the running data.</p>
+<pre class="r"><code>runs.2021 &lt;- strava %&gt;% filter(`Activity Type` == &quot;Run&quot;) %&gt;%
+  mutate(Group = cut(Distance, c(0, 4999, 9999, Inf),
+                     labels = c(&quot;0km-5km&quot;, &quot;5km-10km&quot;, &quot;10km+&quot;)),
+         TotalDist = cumsum(Distance)) %&gt;% ggplot() +
+  geom_point(aes(`Activity Date`, Distance/1000, colour = Group), size = 3, alpha = 0.6) +
+  geom_line(aes(`Activity Date`, TotalDist/30000), colour = &quot;orange&quot;, size = 2) +
+  scale_y_continuous(
+    # Features of the first axis
+    name = &quot;Ride Distance (KM)&quot;,
+    # Add a second axis and specify its features
+    sec.axis = sec_axis( trans=~.*30, name=&quot;Total Distance (KM)&quot;)
+  ) +
+  xlab(&quot;Date&quot;) + ylab(&quot;Distance (KM)&quot;) +
+  theme_bw()
+runs.extra &lt;- ggExtra::ggMarginal((runs.2021 + ggtitle(&quot;Runs in 2021&quot;) +  
+                                      scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                                                       date_labels = &quot;%b&quot;, 
+                                                       limits = as.POSIXct(c(&quot;2021-01-01&quot;, &quot;2021-12-31&quot;))) + 
+                                      coord_cartesian(expand = F, ylim = c(0,15))+ 
+                                      theme(legend.position = &quot;bottom&quot;,
+                                            plot.title = element_text(hjust = 0.5, size = 30))), 
+                                   type = &quot;histogram&quot;, margins = &quot;x&quot;) 
+runs.extra</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-1.png" width="864" /></p>
+<p>There’s an obvious skew to the data: I didn’t take up recreation running until August. Except I apparently had one run in Feb. I’m pretty keen to focus on my progress after I properly took it up, so I’ll filter that one out.</p>
+<pre class="r"><code>runs.2021 &lt;- strava %&gt;% filter(`Activity Type` == &quot;Run&quot;, `Activity Date` &gt; &quot;2021-06-01&quot;) %&gt;%
+  mutate(Group = cut(Distance, c(0, 4999, 9999, Inf),
+                     labels = c(&quot;0km-5km&quot;, &quot;5km-10km&quot;, &quot;10km+&quot;)),
+         TotalDist = cumsum(Distance)) %&gt;% ggplot() +
+  geom_point(aes(`Activity Date`, Distance/1000, colour = Group), size = 3, alpha = 0.6) +
+  geom_line(aes(`Activity Date`, TotalDist/30000), colour = &quot;orange&quot;, size = 2) +
+  scale_y_continuous(
+    # Features of the first axis
+    name = &quot;Ride Distance (KM)&quot;,
+    # Add a second axis and specify its features
+    sec.axis = sec_axis( trans=~.*30, name=&quot;Total Distance (KM)&quot;)
+  ) +
+  xlab(&quot;Date&quot;) + ylab(&quot;Distance (KM)&quot;) +
+  theme_bw()
+runs.extra &lt;- ggExtra::ggMarginal((runs.2021 + ggtitle(&quot;Runs in 2021&quot;) +  
+                                      scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                                                       date_labels = &quot;%b&quot;, 
+                                                       limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+                                      coord_cartesian(expand = F, ylim = c(0,15))+ 
+                                      theme(legend.position = &quot;bottom&quot;,
+                                            plot.title = element_text(hjust = 0.5, size = 30))), 
+                                   type = &quot;histogram&quot;, margins = &quot;x&quot;) 
+runs.extra</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-1.png" width="864" /></p>
+<p>Nice, so I got to 400km in that time, and increased my average distance over time. Or at least it looks that way… let’s chuck on a regression line and find out.</p>
+<pre class="r"><code>runs.dist.time &lt;- 
+  ggExtra::ggMarginal((runs.2021 + ggtitle(&quot;Runs in 2021&quot;) +  
+                         geom_smooth(aes(`Activity Date`, Distance/1000), se = F, method = &quot;lm&quot;) +
+                         scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                                          date_labels = &quot;%b&quot;, 
+                                          limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+                         coord_cartesian(expand = F, ylim = c(0,15))+ 
+                         theme(legend.position = &quot;bottom&quot;,
+                               plot.title = element_text(hjust = 0.5, size = 30))), 
+                      type = &quot;histogram&quot;, margins = &quot;x&quot;) </code></pre>
+<pre><code>## `geom_smooth()` using formula &#39;y ~ x&#39;
+## `geom_smooth()` using formula &#39;y ~ x&#39;
+## `geom_smooth()` using formula &#39;y ~ x&#39;</code></pre>
+<pre class="r"><code>runs.dist.time</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-13-1.png" width="864" />
+Yep, a general increase in run distance. That’s good! I certainly felt like I could run 5km+ much easier as the year progressed. Even had a go at the 10km+ range.</p>
+</div>
+<div id="speed-progression" class="section level2">
+<h2>Speed progression</h2>
+<p>I set myself 2 major goals after a couple of runs.<br>
+1) Beat 25 minutes for 5km <br>
+2) beat 9 minutes for 2km <br>
+Both were very achievable and I hit those fairly quickly. I then set my sights harder goals:<br>
+3) sub 24 minute 5km <br>
+4) sub 8 minute 2km <br>
+5) sub 50 minute 10km.<br>
+As such the 2km, 5km and 10km were set distances I would run at pace, while other runs I did with less overall intent. I’ll modify the running data to group these and then visualise how my pace improved across time.</p>
+<pre class="r"><code>runs &lt;- strava %&gt;% filter(`Activity Date` &gt; &quot;2021-06-01&quot;, Distance &gt; 1999, `Activity Type` == &quot;Run&quot;) %&gt;%
+  mutate(Group = cut(Distance, c(0, 2200, 4999, 5200, 9999, 10500,  Inf),
+                     labels = c(&quot;2km&quot;, &quot;2km-5km&quot;, &quot;5km&quot;, &quot;5mk-10km&quot;, &quot;10km&quot;, &quot;10km+&quot;)),
+         TotalDist = cumsum(Distance))</code></pre>
+<pre class="r"><code>runs %&gt;% ggplot() + 
+  ggtitle(&quot;Runs in 2021&quot;, &quot;Change in average speed across time&quot;) + 
+  geom_point(aes(`Activity Date`, `Average Speed`*3.6, colour = Group), size = 3) +
+  geom_smooth(aes(`Activity Date`, `Average Speed`*3.6), colour = &quot;black&quot;, se = F, 
+              method = &quot;lm&quot;, linetype = &quot;dashed&quot;) +
+  scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                   date_labels = &quot;%b&quot;, 
+                   limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+  coord_cartesian(expand = F, ylim = c(6,16)) + 
+  ylab(&quot;Average Speed KM/H&quot;) + xlab(&quot;Date&quot;) +
+  facet_wrap(facets = &quot;Group&quot;, ncol = 2) +
+  theme_bw() +
+  theme(legend.position = &quot;right&quot;,
+        plot.title = element_text(hjust = 0.5, size = 30),
+        plot.subtitle = element_text(hjust = 0.5, size = 15)) </code></pre>
+<pre><code>## `geom_smooth()` using formula &#39;y ~ x&#39;</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-15-1.png" width="864" /></p>
+<p>Some good increases in speed across time. Definite improvement, good to see! Let’s investigate how I went for each of my “race” times. I just need to modify the total speed as some distances are a little bit more if I delayed finishing tracking the run (i.e. gasping for air instead of hitting STOP).</p>
+<pre class="r"><code># 2km
+short &lt;-
+  runs %&gt;% filter(Group == &quot;2km&quot;) %&gt;% mutate(AdjustedTime = `Moving Time`*2000/Distance) %&gt;% ggplot() +
+  geom_point(aes(`Activity Date`, AdjustedTime/60), colour = &quot;red&quot;, size = 5) + 
+  geom_hline(yintercept = c(9,8), colour = c(&quot;blue&quot;, &quot;green&quot;), linetype = &quot;dashed&quot;) +
+  scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                   date_labels = &quot;%b&quot;, 
+                   limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+  geom_text(data = runs[77,], aes(`Activity Date`, (`Moving Time`*2000/Distance)/60), 
+            label = &quot;7.59!&quot;, nudge_y = -0.2) +
+  coord_cartesian(expand = F, ylim = c(7.5, 10.5)) + 
+  ylab(&quot;Minutes&quot;) + xlab(&quot;Date&quot;) +
+  theme_bw()
+  
+# 5km
+med &lt;- 
+  runs %&gt;% filter(Group == &quot;5km&quot;) %&gt;% mutate(AdjustedTime = `Moving Time`*5000/Distance) %&gt;% ggplot() +
+  geom_point(aes(`Activity Date`, AdjustedTime/60), colour = &quot;darkgreen&quot;, size = 5) + 
+  geom_hline(yintercept = c(25, 24), colour = c(&quot;blue&quot;, &quot;red&quot;), linetype = &quot;dashed&quot;) +
+  scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                   date_labels = &quot;%b&quot;, 
+                   limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+    geom_text(data = runs[55,], aes(`Activity Date`, (`Moving Time`*5000/Distance)/60), 
+            label = &quot;23.49!&quot;, nudge_y = -0.5) +
+  coord_cartesian(expand = F, ylim = c(22.5, 28.5)) + 
+  ylab(&quot;Minutes&quot;) + xlab(&quot;Date&quot;) +
+  theme_bw()
+  
+  # 10km
+long &lt;- 
+  runs %&gt;% filter(Group == &quot;10km&quot;) %&gt;% mutate(AdjustedTime = `Moving Time`*10000/Distance) %&gt;% ggplot() +
+  geom_point(aes(`Activity Date`, AdjustedTime/60), colour = &quot;blue&quot;, size = 5) + 
+  geom_hline(yintercept = c(50), colour = c(&quot;red&quot;), linetype = &quot;dashed&quot;) +
+  scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                   date_labels = &quot;%b&quot;, 
+                   limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+  geom_text(data = runs[69,], aes(`Activity Date`, (`Moving Time`*10000/Distance)/60), 
+            label = &quot;2XU: 49.23!&quot;, nudge_y = -1) +
+  coord_cartesian(expand = F, ylim = c(45, 60)) + 
+  ylab(&quot;Minutes&quot;) + xlab(&quot;Date&quot;) +
+  theme_bw()</code></pre>
+<pre class="r"><code>short + med + long + 
+  patchwork::plot_annotation(title = &quot;2km, 5km and 10km timetrials&quot;,
+                             theme = theme(plot.title = element_text(hjust = 0.5, size = 30),
+                                           plot.subtitle = element_text(hjust = 0.5)))</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-1.png" width="864" /></p>
+<p>For each of my goals I did manage to get them at some point - right towards the end of the year for the final goal being the 8 minute 2km time. The 49 minute 10km was in my first “fun run”, the 2XU Beyond Blue awareness run - Mental Health is important team, take care of yourselves :) <br>
+<br></p>
+</div>
+<div id="check-my-fitness-be-my-witness" class="section level2">
+<h2>Check my Fitness be my Witness</h2>
+<p>In theory I should be improving my fitness across time. How can we measure this? Well my average speed has increased, that’s a good start. How about my heart rate? Has there been a change in my mean or max heart rate?</p>
+<pre class="r"><code>maxhr &lt;-
+runs %&gt;% ggplot() +
+  geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+    #geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+  geom_smooth(aes(`Activity Date`, `Max Heart Rate`), method = &quot;lm&quot;, se = F) +
+  scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                   date_labels = &quot;%b&quot;, 
+                   limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+  coord_cartesian(expand = F, ylim = c(0, 200)) + 
+  ylab(&quot;Max Heart Rate&quot;) + xlab(&quot;Date&quot;) +
+  theme_bw()
+
+meanhr &lt;-
+runs %&gt;% ggplot() +
+  geom_point(aes(`Activity Date`, `Average Heart Rate`, colour = Group), size = 2) + 
+    #geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+  geom_smooth(aes(`Activity Date`, `Average Heart Rate`), method = &quot;lm&quot;, se = F) +
+  scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                   date_labels = &quot;%b&quot;, 
+                   limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+  coord_cartesian(expand = F, ylim = c(0, 200)) + 
+  ylab(&quot;Mean Heart Rate&quot;) + xlab(&quot;Date&quot;) +
+  theme_bw()
+
+maxhr | meanhr</code></pre>
+<pre><code>## `geom_smooth()` using formula &#39;y ~ x&#39;</code></pre>
+<pre><code>## Warning: Removed 1 rows containing non-finite values (stat_smooth).</code></pre>
+<pre><code>## Warning: Removed 1 rows containing missing values (geom_point).</code></pre>
+<pre><code>## `geom_smooth()` using formula &#39;y ~ x&#39;</code></pre>
+<pre><code>## Warning: Removed 1 rows containing non-finite values (stat_smooth).
+
+## Warning: Removed 1 rows containing missing values (geom_point).</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-18-1.png" width="864" /></p>
+<p>The low outliers, those below 75 for mean and 150 for max, I would class as unreliable. I know there are some errors with the HR data collection. Without investigating each individual activity (no thanks) I will set thresholds. For comparison, my standard resting HR is ~45-50 BPM.</p>
+<pre class="r"><code>maxhr &lt;-
+runs %&gt;% filter(`Max Heart Rate` &gt; 150) %&gt;% ggplot() +
+  geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+    #geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+  geom_smooth(aes(`Activity Date`, `Max Heart Rate`), method = &quot;lm&quot;, se = F) +
+  scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                   date_labels = &quot;%b&quot;, 
+                   limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+  coord_cartesian(expand = F, ylim = c(75, 200)) + 
+  ylab(&quot;Max Heart Rate&quot;) + xlab(&quot;Date&quot;) +
+  ggtitle(&quot;Max Heart Rate&quot;) +
+  theme_bw()
+
+meanhr &lt;-
+runs %&gt;% filter(`Average Heart Rate` &gt; 75) %&gt;% ggplot() +
+  geom_point(aes(`Activity Date`, `Average Heart Rate`, colour = Group), size = 2) + 
+    #geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+  geom_smooth(aes(`Activity Date`, `Average Heart Rate`), method = &quot;lm&quot;, se = F) +
+  scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                   date_labels = &quot;%b&quot;, 
+                   limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+  coord_cartesian(expand = F, ylim = c(75, 200)) + 
+  ylab(&quot;Mean Heart Rate&quot;) + xlab(&quot;Date&quot;) +
+  ggtitle(&quot;Average Heart Rate&quot;) +
+  theme_bw()
+
+maxhr / meanhr + 
+  patchwork::plot_annotation(title = &quot;Change in heart rate over time&quot;,
+                             theme = theme(plot.title = element_text(hjust = 0.5, size = 30))) +
+  patchwork::plot_layout(guides = &quot;collect&quot;)</code></pre>
+<pre><code>## `geom_smooth()` using formula &#39;y ~ x&#39;
+## `geom_smooth()` using formula &#39;y ~ x&#39;</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-19-1.png" width="864" /></p>
+<p>Lets display this differently, as a <code>Cleveland Plot</code>, just for kicks.</p>
+<pre class="r"><code>runs %&gt;% filter(`Average Heart Rate` &gt; 75, `Max Heart Rate` &gt; 150) %&gt;% ggplot() +
+  geom_segment( aes(x=`Activity Date`, xend=`Activity Date`, y=`Average Heart Rate` , yend=`Max Heart Rate`),
+                color=&quot;grey&quot;) +
+  geom_smooth(aes(`Activity Date`, `Max Heart Rate`), method = &quot;lm&quot;, se = F,
+              colour = &quot;lightblue&quot;, size = 2, alpha = 0.5) +
+  geom_smooth(aes(`Activity Date`, `Average Heart Rate`), method = &quot;lm&quot;, se = F, 
+              colour = &quot;pink&quot;, size = 2, alpha = 0.5) +
+  geom_line(aes(`Activity Date`, (`Max Heart Rate`-`Average Heart Rate`)+50)) +
+  geom_point( aes(x=`Activity Date`, y=`Average Heart Rate`), color=&quot;red&quot;, size=3 ) +
+  geom_point( aes(x=`Activity Date`, y=`Max Heart Rate`), color=&quot;blue&quot;, size=3 ) +
+  scale_y_continuous(
+    # Features of the first axis
+    name = &quot;Heart Rate&quot;,
+    # Add a second axis and specify its features
+    sec.axis = sec_axis( trans=~.+50, name=&quot;Max-Mean Diff&quot;)
+  ) +
+  scale_x_datetime(date_breaks = &quot;1 month&quot;, minor_breaks = &quot;1 month&quot;, 
+                   date_labels = &quot;%b&quot;, 
+                   limits = as.POSIXct(c(&quot;2021-08-01&quot;, &quot;2021-12-31&quot;))) + 
+  coord_cartesian(expand = F, ylim = c(50, 200)) +
+  ggtitle(&quot;Mean vs Max Heart Rate&quot;, &quot;Blue = Max, Red = Min, Trend = Linear Model, Black = Heart Rate Difference&quot;) +
+    theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 30),
+        plot.subtitle = element_text(hjust = 0.5, size = 10)) </code></pre>
+<pre><code>## `geom_smooth()` using formula &#39;y ~ x&#39;
+## `geom_smooth()` using formula &#39;y ~ x&#39;</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-20-1.png" width="864" /></p>
+<p>I have indeed decreased my running heart rate. Fantastic. There is a metric recorded called <code>Relative Effort</code>, Im curious to see how that compares with distance, speed, heart rate. Time for a <a href="https://ggobi.github.io/ggally/">GGally</a> correlogram!</p>
+<pre class="r"><code>GGally::ggpairs((runs %&gt;% mutate(`Average Speed` = `Average Speed`*3.6) %&gt;% 
+                   select(&quot;Distance&quot;, &quot;Average Speed&quot;, &quot;Average Heart Rate&quot;, &quot;Max Heart Rate&quot;, &quot;Relative Effort&quot;))) + ggtitle(&quot;Correlation of key running metrics&quot;) + 
+  theme(plot.title = element_text(size = 20, hjust = 0.5))</code></pre>
+<pre><code>## Registered S3 method overwritten by &#39;GGally&#39;:
+##   method from   
+##   +.gg   ggplot2</code></pre>
+<pre><code>## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, :
+## Removing 1 row that contained a missing value
+
+## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, :
+## Removing 1 row that contained a missing value
+
+## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, :
+## Removing 1 row that contained a missing value
+
+## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, :
+## Removing 1 row that contained a missing value
+
+## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, :
+## Removing 1 row that contained a missing value
+
+## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, :
+## Removing 1 row that contained a missing value</code></pre>
+<pre><code>## Warning: Removed 1 rows containing missing values (geom_point).
+
+## Warning: Removed 1 rows containing missing values (geom_point).</code></pre>
+<pre><code>## Warning: Removed 1 rows containing non-finite values (stat_density).</code></pre>
+<pre><code>## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, :
+## Removing 1 row that contained a missing value
+
+## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, :
+## Removing 1 row that contained a missing value</code></pre>
+<pre><code>## Warning: Removed 1 rows containing missing values (geom_point).
+
+## Warning: Removed 1 rows containing missing values (geom_point).
+
+## Warning: Removed 1 rows containing missing values (geom_point).</code></pre>
+<pre><code>## Warning: Removed 1 rows containing non-finite values (stat_density).</code></pre>
+<pre><code>## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, :
+## Removing 1 row that contained a missing value</code></pre>
+<pre><code>## Warning: Removed 1 rows containing missing values (geom_point).
+
+## Warning: Removed 1 rows containing missing values (geom_point).
+
+## Warning: Removed 1 rows containing missing values (geom_point).
+
+## Warning: Removed 1 rows containing missing values (geom_point).</code></pre>
+<pre><code>## Warning: Removed 1 rows containing non-finite values (stat_density).</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-21-1.png" width="864" /></p>
+<p>The relative effort seems to peak at a value of 25 (I don’t know what that means) which tightly correlates with Distance, while average speed has an inverse correlation with distance as would be expected. I couldn’t quite get the grouping variable feature to work with this plot, but I dont think it would add much so not diving down that rabbit hole.<br>
+<br></p>
+</div>
+</div>
+<div id="fin" class="section level1">
+<h1>Fin</h1>
+<p>Well this has been fun and interesting. It’s caused me to use {lubridate} for the first time, reinvestigated the {ggExtra} and {GGally} packages and reminds me that I very much love {patchwork}. These types of blog posts are what I regularly turn to for learning more about R programming, in particular graphing and so hopefully someone somewhere finds something in this helpful. <br>
+<br>
+I rely heavily on the <a href="https://www.r-graph-gallery.com/index.html">R Graph Gallery</a>, such a fantastic resource. So many great examples on how to generate graphs - I had never made a Cleveland Plot before but using the site it took me about 2 minutes. <br>
+<br>
+Cheers all,
+Sean</p>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 4.1.1 (2021-08-10)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 19044)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_Australia.1252  LC_CTYPE=English_Australia.1252   
+## [3] LC_MONETARY=English_Australia.1252 LC_NUMERIC=C                      
+## [5] LC_TIME=English_Australia.1252    
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] patchwork_1.1.1 lubridate_1.8.0 forcats_0.5.1   stringr_1.4.0  
+##  [5] dplyr_1.0.7     purrr_0.3.4     readr_2.1.1     tidyr_1.1.4    
+##  [9] tibble_3.1.6    ggplot2_3.3.5   tidyverse_1.3.1
+## 
+## loaded via a namespace (and not attached):
+##  [1] nlme_3.1-152       fs_1.5.2           bit64_4.0.5        RColorBrewer_1.1-2
+##  [5] httr_1.4.2         tools_4.1.1        backports_1.4.1    bslib_0.3.1       
+##  [9] utf8_1.2.2         R6_2.5.1           DBI_1.1.2          mgcv_1.8-36       
+## [13] colorspace_2.0-2   withr_2.4.3        tidyselect_1.1.1   GGally_2.1.2      
+## [17] bit_4.0.4          compiler_4.1.1     cli_3.1.0          rvest_1.0.2       
+## [21] xml2_1.3.3         labeling_0.4.2     bookdown_0.24      sass_0.4.0        
+## [25] scales_1.1.1       digest_0.6.29      rmarkdown_2.11     pkgconfig_2.0.3   
+## [29] htmltools_0.5.2    dbplyr_2.1.1       fastmap_1.1.0      highr_0.9         
+## [33] rlang_0.4.12       readxl_1.3.1       rstudioapi_0.13    shiny_1.7.1       
+## [37] jquerylib_0.1.4    farver_2.1.0       generics_0.1.1     jsonlite_1.7.2    
+## [41] vroom_1.5.7        magrittr_2.0.1     Matrix_1.3-4       Rcpp_1.0.7        
+## [45] munsell_0.5.0      fansi_0.5.0        lifecycle_1.0.1    stringi_1.7.6     
+## [49] yaml_2.2.1         plyr_1.8.6         grid_4.1.1         parallel_4.1.1    
+## [53] promises_1.2.0.1   crayon_1.4.2       miniUI_0.1.1.1     lattice_0.20-44   
+## [57] haven_2.4.3        splines_4.1.1      hms_1.1.1          knitr_1.37        
+## [61] pillar_1.6.4       reprex_2.0.1       glue_1.6.0         evaluate_0.14     
+## [65] blogdown_1.7.2     modelr_0.1.8       vctrs_0.3.8        tzdb_0.2.0        
+## [69] httpuv_1.6.4       cellranger_1.1.0   gtable_0.3.0       reshape_0.8.8     
+## [73] assertthat_0.2.1   xfun_0.29          ggExtra_0.9        mime_0.12         
+## [77] xtable_1.8-4       broom_0.7.10       later_1.3.0        ellipsis_0.3.2</code></pre>
+</div>

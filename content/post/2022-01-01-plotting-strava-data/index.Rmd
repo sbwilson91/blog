@@ -1,0 +1,467 @@
+---
+title: Plotting Strava Data
+author: 'Sean Wilson'
+date: "`r Sys.Date()`"
+slug: plotting-strava-data
+categories: ["R"]
+tags: ["R", "Strava", "lubridate", "ggplot"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.width = 9,
+                      fig.height = 6)
+```
+
+# What is this?
+
+As an avid sportman, lover of data metrics and a user of R, I decided that the best way to relax over the holidays was to try graphing my running and riding stats from the last year. I'll let you decide if it's a worthwhile holiday activity or not. After a bit of work getting the data and then mucking around with the graphs  I thought to make the work available for any other hobbyist in this particular niche. <br>
+<br>
+I'll run through the specifics of the data in more detail when needed throughout the workflow. A quick intro: Sean Wilson, PhD candidate at University of Melbourne, Australia studying life sciences, stem cells and bioinformatics. I have a [twitter](www.twitter.com/sbwil91) if that appeals to you.<br>
+<br>
+
+## Downloading the data from Strava
+
+I've been tracking my runs and rides with Strava for a while now, although I recently switched to using the [GearTracker]() app on my Gear watch - my personal experience is that the Strava app itself on the watch was a bit temperamental but the GearTracker app is fantastic and works through the Strava API meaning the data syncs with Strava.<br>
+<br>
+The Strava website has solid instructions on how to [download your personal data](https://support.strava.com/hc/en-us/articles/216918437-Exporting-your-Data-and-Bulk-Export). <br>
+<br>
+Once downloaded, there are many files however the key one needed is the `activities.csv` file which contained all the key metrics from recorded runs. You could also utilise the .tcx or .gpx files which contain location data however I didn't dive into that this time around... maybe next holidays!
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(patchwork)
+```
+
+
+```{r}
+strava <- read_csv("~/export_40721577/activities.csv")
+head(strava, 5)
+```
+
+## Explore and Clean
+
+The dataframe contains 83 columns to explore. A quick scan shows many of these lack any information at all, so I would be best served to remove those. 
+
+```{r}
+strava <- Filter(function(x)!all(is.na(x)), strava)
+```
+
+I also noticed that some of the times are a bit off; while I have done a couple of activites at odd hours, there were clearly too many. The recorded time was not local time, instead 11 hours behind. This meant I had to add 11 hours when utilising `lubridate` for the datetime column.
+
+```{r}
+strava$`Activity Date` <- lubridate::mdy_hms(strava$`Activity Date`, tz = "Australia/Sydney") +
+  lubridate::hours(11)
+# filter all events prior to 2021, also filter to include only runs and rides
+strava <- strava %>% filter(`Activity Date` > "2021-01-01", `Activity Type` %in% c("Run", "Ride"))
+```
+
+Now for the tricky stuff: getting the date/time set up correctly. Lubridate is a fantastic package, just need to tweak a few things. <br>
+From what I could gather, it's hard to extract the time component from the datetime due to the way it's coded as a POSIXct or POSIXlt class object. The work around I used was to extract just the time while setting a single day to those times.
+```{r}
+time <- hms::hms(second(strava$`Activity Date`), minute(strava$`Activity Date`), hour(strava$`Activity Date`))
+time <- as.POSIXct(time)
+strava$Time <- time
+head(strava$Time)
+```
+I'm ignoring that it's in UTC timezone format and a date from well before I was born, that doesn't matter. This gives the chance for a first plot, a visual look at when I'm most active.
+
+```{r}
+time_density_cart <- ggplot(strava, aes(Time)) + 
+  geom_histogram(fill = "black", alpha = 0.5) + 
+    scale_x_datetime(date_breaks = "6 hours", date_labels = "%H:%M") 
+
+time_density_polar <- ggplot(strava, aes(Time)) + 
+  geom_density(fill = "green", alpha = 0.5) + 
+    scale_x_datetime(date_breaks = "1 hours", date_labels = "%H:%M") +
+  coord_polar()
+
+time_density_cart + time_density_polar
+```
+I tried to be clever with the second plot by using polar coordinates to replicate a clock - not a perfect result but not bad! The peaks align with mid-morning and early evening, pretty standard times to be active. <br>
+<br>
+What variables have been recorded?
+
+```{r}
+colnames(strava)
+```
+
+Some interesting variables collected here. There are a few duplicated columns such as `Distance...7` and `Distance...17` which I think is due to the use of `GearTracker`. I'll investigate these and clean them up.
+
+```{r}
+# Distance
+table(is.na(strava$Distance...7), is.na(strava$Distance...17))
+tail(strava$Distance...7,5)
+tail(strava$Distance...17,5)
+# One has recorded in Metres (M) while the other in kilometres (KM)
+
+# Elapsed time
+table(strava$`Elapsed Time...6`==strava$`Elapsed Time...15`)
+
+# Max Heart Rate
+table(is.na(strava$`Max Heart Rate...8`), is.na(strava$`Max Heart Rate...30`))
+is.na(strava$`Max Heart Rate...30`) %>% table()
+
+# relative effort
+is.na(strava$`Relative Effort...37`) %>% table()
+is.na(strava$`Relative Effort...9`) %>% table()
+table(strava$`Relative Effort...9`==strava$`Relative Effort...37`)
+
+# fix table
+
+# remove the last couple of columns
+strava <- strava[,1:53]
+
+# set correct columns for replicate variables
+strava <- strava %>% mutate(Distance = Distance...17,
+                            `Elapsed Time` = `Elapsed Time...6`,
+                            `Max Heart Rate` = `Max Heart Rate...8`,
+                            `Relative Effort` = `Relative Effort...9`)
+strava <- strava %>% filter(Distance > 1000)
+```
+Sweet, now I have a data frame containing all my run and ride activities for 2021. Let's plot some graphs!
+
+# Visualisations
+
+## Riding for the 850 challenge
+
+The focus of my stem cell research is developing kidney organoids with the ultimate aim of contributing to the treatment of kidney diseases. I was involved in the `#850challenge` which was to complete 850 miles of activity to raise awareness of the 850 million people worldwide with kidney diseases. That's 1368km metric. I tracked my rides this year with the goal of completing that challenge, let's see how I did.
+
+```{r}
+rides.2021 <- strava %>% filter(`Activity Type` == "Ride") %>%
+  mutate(Group = cut(Distance, c(0, 4999, 9999, Inf),
+                     labels = c("0km-5km", "5km-10km", "10km+")),
+         TotalDist = cumsum(Distance)) %>% ggplot() +
+  geom_point(aes(`Activity Date`, Distance/1000, colour = Group), size = 3, alpha = 0.6) +
+  geom_line(aes(`Activity Date`, TotalDist/100000), colour = "orange", size = 2) +
+  geom_hline(yintercept = 1368/100) +
+  scale_y_continuous(
+    # Features of the first axis
+    name = "Ride Distance (KM)",
+    # Add a second axis and specify its features
+    sec.axis = sec_axis( trans=~.*100, name="Total Distance (KM)")
+  ) +
+  xlab("Date") + ylab("Distance (KM)") +
+  coord_cartesian(ylim = c(0, 22)) +
+  theme_bw()
+rides.2021
+```
+I broke up the rides into distance groups using the `cut` function. Also added the cumulative distance for the rides as a line graph with the right y-axis; this required some maths to transform the cumulative distance value as it plots against the left y-axis. You can see how that was done in the function call. As you can see, there is a lot of rides in that 0km-5km range. I live 3km from the lab and 3.5km from my cricket club, my two main destinations. <br>
+<br>
+Using the [`ggExtra` package](https://cran.r-project.org/web/packages/ggExtra/vignettes/ggExtra.html) we can add density/distribution information to the edges of the plot.
+
+```{r}
+rides.extra <- ggExtra::ggMarginal((rides.2021 + ggtitle("Riding the #850challenge in 2021") +  # uses the existing graph
+                                      scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", # sets axis breaks
+                                                       date_labels = "%b", # changes the x axis labels; %m would give the mont numbers not names
+                                                       limits = as.POSIXct(c("2021-01-01", "2021-12-31"))) + 
+                                      coord_cartesian(expand = F, ylim = c(0,22))+ #limits and this line fix the margins to tidy up the graph
+                                      theme(legend.position = "bottom",
+                                            plot.title = element_text(hjust = 0.5, size = 30))), 
+                                   type = "histogram", margins = "x") 
+rides.extra
+```
+There, I'm quite happy with this! It tracks the rides throughout the year, how the distance progressed to hitting the goal as shown by the black line early in December. That dip in the middle is when I was stuck in a lockdown while visiting my parents, who live 4 hours from Melbourne. The histogram showing distance per rides didn't look great so I decided it wasn't needed - its clear where most of the rides lie.<br>
+<br>
+Notice that patch of green dots around May - I house/dog sat for a few weeks so had a different ride to/from work. It's kind of neat to see those kinds of events represented in this chart. At least I think so.<br>
+<br>
+I think that's pretty cool, hopefully the comments in the code make sense so you can see how I worked with `ggplot` and `lubridate` to get this graph looking "schmick" as my Dad would say. 
+
+## Run, Run, as fast as you can
+
+The real interest for me with this data was investigating my running this year. Lets repeat the ride graph but with the running data.
+
+```{r}
+runs.2021 <- strava %>% filter(`Activity Type` == "Run") %>%
+  mutate(Group = cut(Distance, c(0, 4999, 9999, Inf),
+                     labels = c("0km-5km", "5km-10km", "10km+")),
+         TotalDist = cumsum(Distance)) %>% ggplot() +
+  geom_point(aes(`Activity Date`, Distance/1000, colour = Group), size = 3, alpha = 0.6) +
+  geom_line(aes(`Activity Date`, TotalDist/30000), colour = "orange", size = 2) +
+  scale_y_continuous(
+    # Features of the first axis
+    name = "Ride Distance (KM)",
+    # Add a second axis and specify its features
+    sec.axis = sec_axis( trans=~.*30, name="Total Distance (KM)")
+  ) +
+  xlab("Date") + ylab("Distance (KM)") +
+  theme_bw()
+runs.extra <- ggExtra::ggMarginal((runs.2021 + ggtitle("Runs in 2021") +  
+                                      scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                                                       date_labels = "%b", 
+                                                       limits = as.POSIXct(c("2021-01-01", "2021-12-31"))) + 
+                                      coord_cartesian(expand = F, ylim = c(0,15))+ 
+                                      theme(legend.position = "bottom",
+                                            plot.title = element_text(hjust = 0.5, size = 30))), 
+                                   type = "histogram", margins = "x") 
+runs.extra
+```
+
+There's an obvious skew to the data: I didn't take up recreation running until August. Except I apparently had one run in Feb. I'm pretty keen to focus on my progress after I properly took it up, so I'll filter that one out.
+
+```{r}
+runs.2021 <- strava %>% filter(`Activity Type` == "Run", `Activity Date` > "2021-06-01") %>%
+  mutate(Group = cut(Distance, c(0, 4999, 9999, Inf),
+                     labels = c("0km-5km", "5km-10km", "10km+")),
+         TotalDist = cumsum(Distance)) %>% ggplot() +
+  geom_point(aes(`Activity Date`, Distance/1000, colour = Group), size = 3, alpha = 0.6) +
+  geom_line(aes(`Activity Date`, TotalDist/30000), colour = "orange", size = 2) +
+  scale_y_continuous(
+    # Features of the first axis
+    name = "Ride Distance (KM)",
+    # Add a second axis and specify its features
+    sec.axis = sec_axis( trans=~.*30, name="Total Distance (KM)")
+  ) +
+  xlab("Date") + ylab("Distance (KM)") +
+  theme_bw()
+runs.extra <- ggExtra::ggMarginal((runs.2021 + ggtitle("Runs in 2021") +  
+                                      scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                                                       date_labels = "%b", 
+                                                       limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+                                      coord_cartesian(expand = F, ylim = c(0,15))+ 
+                                      theme(legend.position = "bottom",
+                                            plot.title = element_text(hjust = 0.5, size = 30))), 
+                                   type = "histogram", margins = "x") 
+runs.extra
+```
+
+Nice, so I got to 400km in that time, and increased my average distance over time. Or at least it looks that way... let's chuck on a regression line and find out.
+
+```{r}
+
+runs.dist.time <- 
+  ggExtra::ggMarginal((runs.2021 + ggtitle("Runs in 2021") +  
+                         geom_smooth(aes(`Activity Date`, Distance/1000), se = F, method = "lm") +
+                         scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                                          date_labels = "%b", 
+                                          limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+                         coord_cartesian(expand = F, ylim = c(0,15))+ 
+                         theme(legend.position = "bottom",
+                               plot.title = element_text(hjust = 0.5, size = 30))), 
+                      type = "histogram", margins = "x") 
+runs.dist.time
+```
+Yep, a general increase in run distance. That's good! I certainly felt like I could run 5km+ much easier as the year progressed. Even had a go at the 10km+ range. 
+
+## Speed progression
+
+I set myself 2 major goals after a couple of runs.<br>
+1) Beat 25 minutes for 5km <br>
+2) beat 9 minutes for 2km <br>
+Both were very achievable and I hit those fairly quickly. I then set my sights harder goals:<br>
+3) sub 24 minute 5km <br>
+4) sub 8 minute 2km <br>
+5) sub 50 minute 10km.<br>
+As such the 2km, 5km and 10km were set distances I would run at pace, while other runs I did with less overall intent. I'll modify the running data to group these and then visualise how my pace improved across time.
+
+```{r}
+runs <- strava %>% filter(`Activity Date` > "2021-06-01", Distance > 1999, `Activity Type` == "Run") %>%
+  mutate(Group = cut(Distance, c(0, 2200, 4999, 5200, 9999, 10500,  Inf),
+                     labels = c("2km", "2km-5km", "5km", "5mk-10km", "10km", "10km+")),
+         TotalDist = cumsum(Distance))
+```
+
+```{r}
+runs %>% ggplot() + 
+  ggtitle("Runs in 2021", "Change in average speed across time") + 
+  geom_point(aes(`Activity Date`, `Average Speed`*3.6, colour = Group), size = 3) +
+  geom_smooth(aes(`Activity Date`, `Average Speed`*3.6), colour = "black", se = F, 
+              method = "lm", linetype = "dashed") +
+  scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                   date_labels = "%b", 
+                   limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+  coord_cartesian(expand = F, ylim = c(6,16)) + 
+  ylab("Average Speed KM/H") + xlab("Date") +
+  facet_wrap(facets = "Group", ncol = 2) +
+  theme_bw() +
+  theme(legend.position = "right",
+        plot.title = element_text(hjust = 0.5, size = 30),
+        plot.subtitle = element_text(hjust = 0.5, size = 15)) 
+
+
+```
+
+Some good increases in speed across time. Definite improvement, good to see! Let's investigate how I went for each of my "race" times. I just need to modify the total speed as some distances are a little bit more if I delayed finishing tracking the run (i.e. gasping for air instead of hitting STOP).
+
+```{r}
+# 2km
+short <-
+  runs %>% filter(Group == "2km") %>% mutate(AdjustedTime = `Moving Time`*2000/Distance) %>% ggplot() +
+  geom_point(aes(`Activity Date`, AdjustedTime/60), colour = "red", size = 5) + 
+  geom_hline(yintercept = c(9,8), colour = c("blue", "green"), linetype = "dashed") +
+  scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                   date_labels = "%b", 
+                   limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+  geom_text(data = runs[77,], aes(`Activity Date`, (`Moving Time`*2000/Distance)/60), 
+            label = "7.59!", nudge_y = -0.2) +
+  coord_cartesian(expand = F, ylim = c(7.5, 10.5)) + 
+  ylab("Minutes") + xlab("Date") +
+  theme_bw()
+  
+# 5km
+med <- 
+  runs %>% filter(Group == "5km") %>% mutate(AdjustedTime = `Moving Time`*5000/Distance) %>% ggplot() +
+  geom_point(aes(`Activity Date`, AdjustedTime/60), colour = "darkgreen", size = 5) + 
+  geom_hline(yintercept = c(25, 24), colour = c("blue", "red"), linetype = "dashed") +
+  scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                   date_labels = "%b", 
+                   limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+    geom_text(data = runs[55,], aes(`Activity Date`, (`Moving Time`*5000/Distance)/60), 
+            label = "23.49!", nudge_y = -0.5) +
+  coord_cartesian(expand = F, ylim = c(22.5, 28.5)) + 
+  ylab("Minutes") + xlab("Date") +
+  theme_bw()
+  
+  # 10km
+long <- 
+  runs %>% filter(Group == "10km") %>% mutate(AdjustedTime = `Moving Time`*10000/Distance) %>% ggplot() +
+  geom_point(aes(`Activity Date`, AdjustedTime/60), colour = "blue", size = 5) + 
+  geom_hline(yintercept = c(50), colour = c("red"), linetype = "dashed") +
+  scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                   date_labels = "%b", 
+                   limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+  geom_text(data = runs[69,], aes(`Activity Date`, (`Moving Time`*10000/Distance)/60), 
+            label = "2XU: 49.23!", nudge_y = -1) +
+  coord_cartesian(expand = F, ylim = c(45, 60)) + 
+  ylab("Minutes") + xlab("Date") +
+  theme_bw()
+```
+
+
+```{r, fig.height=6}
+short + med + long + 
+  patchwork::plot_annotation(title = "2km, 5km and 10km timetrials",
+                             theme = theme(plot.title = element_text(hjust = 0.5, size = 30),
+                                           plot.subtitle = element_text(hjust = 0.5)))
+
+
+
+```
+
+For each of my goals I did manage to get them at some point - right towards the end of the year for the final goal being the 8 minute 2km time. The 49 minute 10km was in my first "fun run", the 2XU Beyond Blue awareness run - Mental Health is important team, take care of yourselves :) <br>
+<br>
+
+## Check my Fitness be my Witness
+
+In theory I should be improving my fitness across time. How can we measure this? Well my average speed has increased, that's a good start. How about my heart rate? Has there been a change in my mean or max heart rate?
+
+```{r, fig.height=4}
+maxhr <-
+runs %>% ggplot() +
+  geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+    #geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+  geom_smooth(aes(`Activity Date`, `Max Heart Rate`), method = "lm", se = F) +
+  scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                   date_labels = "%b", 
+                   limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+  coord_cartesian(expand = F, ylim = c(0, 200)) + 
+  ylab("Max Heart Rate") + xlab("Date") +
+  theme_bw()
+
+meanhr <-
+runs %>% ggplot() +
+  geom_point(aes(`Activity Date`, `Average Heart Rate`, colour = Group), size = 2) + 
+    #geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+  geom_smooth(aes(`Activity Date`, `Average Heart Rate`), method = "lm", se = F) +
+  scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                   date_labels = "%b", 
+                   limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+  coord_cartesian(expand = F, ylim = c(0, 200)) + 
+  ylab("Mean Heart Rate") + xlab("Date") +
+  theme_bw()
+
+maxhr | meanhr
+```
+
+The low outliers, those below 75 for mean and 150 for max, I would class as unreliable. I know there are some errors with the HR data collection. Without investigating each individual activity (no thanks) I will set thresholds. For comparison, my standard resting HR is ~45-50 BPM.
+
+```{r}
+maxhr <-
+runs %>% filter(`Max Heart Rate` > 150) %>% ggplot() +
+  geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+    #geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+  geom_smooth(aes(`Activity Date`, `Max Heart Rate`), method = "lm", se = F) +
+  scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                   date_labels = "%b", 
+                   limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+  coord_cartesian(expand = F, ylim = c(75, 200)) + 
+  ylab("Max Heart Rate") + xlab("Date") +
+  ggtitle("Max Heart Rate") +
+  theme_bw()
+
+meanhr <-
+runs %>% filter(`Average Heart Rate` > 75) %>% ggplot() +
+  geom_point(aes(`Activity Date`, `Average Heart Rate`, colour = Group), size = 2) + 
+    #geom_point(aes(`Activity Date`, `Max Heart Rate`, colour = Group), size = 2) + 
+  geom_smooth(aes(`Activity Date`, `Average Heart Rate`), method = "lm", se = F) +
+  scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                   date_labels = "%b", 
+                   limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+  coord_cartesian(expand = F, ylim = c(75, 200)) + 
+  ylab("Mean Heart Rate") + xlab("Date") +
+  ggtitle("Average Heart Rate") +
+  theme_bw()
+
+maxhr / meanhr + 
+  patchwork::plot_annotation(title = "Change in heart rate over time",
+                             theme = theme(plot.title = element_text(hjust = 0.5, size = 30))) +
+  patchwork::plot_layout(guides = "collect")
+```
+
+Lets display this differently, as a `Cleveland Plot`, just for kicks.
+
+```{r}
+runs %>% filter(`Average Heart Rate` > 75, `Max Heart Rate` > 150) %>% ggplot() +
+  geom_segment( aes(x=`Activity Date`, xend=`Activity Date`, y=`Average Heart Rate` , yend=`Max Heart Rate`),
+                color="grey") +
+  geom_smooth(aes(`Activity Date`, `Max Heart Rate`), method = "lm", se = F,
+              colour = "lightblue", size = 2, alpha = 0.5) +
+  geom_smooth(aes(`Activity Date`, `Average Heart Rate`), method = "lm", se = F, 
+              colour = "pink", size = 2, alpha = 0.5) +
+  geom_line(aes(`Activity Date`, (`Max Heart Rate`-`Average Heart Rate`)+50)) +
+  geom_point( aes(x=`Activity Date`, y=`Average Heart Rate`), color="red", size=3 ) +
+  geom_point( aes(x=`Activity Date`, y=`Max Heart Rate`), color="blue", size=3 ) +
+  scale_y_continuous(
+    # Features of the first axis
+    name = "Heart Rate",
+    # Add a second axis and specify its features
+    sec.axis = sec_axis( trans=~.+50, name="Max-Mean Diff")
+  ) +
+  scale_x_datetime(date_breaks = "1 month", minor_breaks = "1 month", 
+                   date_labels = "%b", 
+                   limits = as.POSIXct(c("2021-08-01", "2021-12-31"))) + 
+  coord_cartesian(expand = F, ylim = c(50, 200)) +
+  ggtitle("Mean vs Max Heart Rate", "Blue = Max, Red = Min, Trend = Linear Model, Black = Heart Rate Difference") +
+    theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 30),
+        plot.subtitle = element_text(hjust = 0.5, size = 10)) 
+
+
+```
+
+I have indeed decreased my running heart rate. Fantastic. There is a metric recorded called `Relative Effort`, Im curious to see how that compares with distance, speed, heart rate. Time for a [GGally](https://ggobi.github.io/ggally/) correlogram!
+
+```{r}
+GGally::ggpairs((runs %>% mutate(`Average Speed` = `Average Speed`*3.6) %>% 
+                   select("Distance", "Average Speed", "Average Heart Rate", "Max Heart Rate", "Relative Effort"))) + ggtitle("Correlation of key running metrics") + 
+  theme(plot.title = element_text(size = 20, hjust = 0.5))
+```
+
+The relative effort seems to peak at a value of 25 (I don't know what that means) which tightly correlates with Distance, while average speed has an inverse correlation with distance as would be expected. I couldn't quite get the grouping variable feature to work with this plot, but I dont think it would add much so not diving down that rabbit hole.<br>
+<br>
+
+
+# Fin
+
+Well this has been fun and interesting. It's caused me to use {lubridate} for the first time, reinvestigated the {ggExtra} and {GGally} packages and reminds me that I very much love {patchwork}. These types of blog posts are what I regularly turn to for learning more about R programming, in particular graphing and so hopefully someone somewhere finds something in this helpful. <br>
+<br>
+I rely heavily on the [R Graph Gallery](https://www.r-graph-gallery.com/index.html), such a fantastic resource. So many great examples on how to generate graphs - I had never made a Cleveland Plot before but using the site it took me about 2 minutes. <br>
+<br>
+Cheers all,
+Sean
+
+
+```{r}
+sessionInfo()
+```
