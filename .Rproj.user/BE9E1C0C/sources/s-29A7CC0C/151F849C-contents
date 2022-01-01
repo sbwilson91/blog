@@ -1,0 +1,6 @@
+# use the trackeR package
+
+# import data
+
+filepath <- "~/export_40721577/activities/6846475742.tcx"
+runDF <- readTCX(file = filepath)

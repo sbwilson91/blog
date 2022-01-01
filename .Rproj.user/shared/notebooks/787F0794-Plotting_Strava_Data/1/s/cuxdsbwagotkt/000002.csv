@@ -1,0 +1,4 @@
+"0","short + med + long + "
+"0","  patchwork::plot_annotation(title = ""2km, 5km and 10km timetrials"","
+"0","                             theme = theme(plot.title = element_text(hjust = 0.5, size = 30),"
+"0","                                           plot.subtitle = element_text(hjust = 0.5)))"

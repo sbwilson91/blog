@@ -1,0 +1,4 @@
+"0","runs <- strava %>% filter(`Activity Date` > ""2021-06-01"", Distance > 1999, `Activity Type` == ""Run"") %>%"
+"0","  mutate(Group = cut(Distance, c(0, 2200, 4999, 5200, 9999, 10500,  Inf),"
+"0","                     labels = c(""2km"", ""2km-5km"", ""5km"", ""5mk-10km"", ""10km"", ""10km+"")),"
+"0","         TotalDist = cumsum(Distance))"

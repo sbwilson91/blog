@@ -1,0 +1,22 @@
+"0","strava <- read_csv(""~/export_40721577/activities.csv"")"
+"2","New names:
+* `Elapsed Time` -> `Elapsed Time...6`
+* Distance -> Distance...7
+* `Max Heart Rate` -> `Max Heart Rate...8`
+* `Relative Effort` -> `Relative Effort...9`
+* Commute -> Commute...10
+* ...
+"
+"1","[1mRows: [22m[34m625[39m [1mColumns: [22m[34m83[39m
+"
+"1","[36m--[39m [1mColumn specification[22m [36m----------------------------------------------------------------------------------[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m  (5): Activity Date, Activity Name, Activity Type, Activity Description, Filename
+[32mdbl[39m (50): Activity ID, Elapsed Time...6, Distance...7, Max Heart Rate...8, Relative Effort...9, Elapse...
+[33mlgl[39m (28): Commute...10, Activity Gear, Athlete Weight, Bike Weight, Average Positive Grade, Average Ne...
+"
+"1","
+[36mi[39m Use [38;5;251m[48;5;235m[38;5;251m[48;5;235m`spec()`[48;5;235m[38;5;251m[49m[39m to retrieve the full column specification for this data.
+[36mi[39m Specify the column types or set [38;5;251m[48;5;235m[38;5;251m[48;5;235m`show_col_types = FALSE`[48;5;235m[38;5;251m[49m[39m to quiet this message.
+"
+"0","head(strava, 5)"

@@ -1,0 +1,29 @@
+"0","runs %>% filter(`Average Heart Rate` > 75, `Max Heart Rate` > 150) %>% ggplot() +
+  geom_segment( aes(x=`Activity Date`, xend=`Activity Date`, y=`Average Heart Rate` , yend=`Max Heart Rate`),
+                color=""grey"") +
+  geom_smooth(aes(`Activity Date`, `Max Heart Rate`), method = ""lm"", se = F,
+              colour = ""lightblue"", size = 2, alpha = 0.5) +
+  geom_smooth(aes(`Activity Date`, `Average Heart Rate`), method = ""lm"", se = F, 
+              colour = ""pink"", size = 2, alpha = 0.5) +
+  geom_line(aes(`Activity Date`, (`Max Heart Rate`-`Average Heart Rate`)+50)) +
+  geom_point( aes(x=`Activity Date`, y=`Average Heart Rate`), color=""red"", size=3 ) +
+  geom_point( aes(x=`Activity Date`, y=`Max Heart Rate`), color=""blue"", size=3 ) +
+  scale_y_continuous(
+    # Features of the first axis
+    name = ""Heart Rate"",
+    # Add a second axis and specify its features
+    sec.axis = sec_axis( trans=~.+50, name=""Max-Mean Diff"")
+  ) +
+  scale_x_datetime(date_breaks = ""1 month"", minor_breaks = ""1 month"", 
+                   date_labels = ""%b"", 
+                   limits = as.POSIXct(c(""2021-08-01"", ""2021-12-31""))) + 
+  coord_cartesian(expand = F, ylim = c(50, 200)) +
+  ggtitle(""Mean vs Max Heart Rate"", ""Blue = Max, Red = Min, Trend = Linear Model, Black = Heart Rate Difference"") +
+    theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 30),
+        plot.subtitle = element_text(hjust = 0.5, size = 10)) 
+"
+"2","`geom_smooth()` using formula 'y ~ x'
+"
+"2","`geom_smooth()` using formula 'y ~ x'
+"

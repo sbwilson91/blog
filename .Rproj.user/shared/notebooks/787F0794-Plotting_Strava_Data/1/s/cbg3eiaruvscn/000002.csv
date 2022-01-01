@@ -1,0 +1,1 @@
+"0","strava <- Filter(function(x)!all(is.na(x)), strava)"
