@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>lubridate on Welcome</title>
+    <link>/tags/lubridate/</link>
+    <description>Recent content in lubridate on Welcome</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sat, 01 Jan 2022 00:00:00 +0000</lastBuildDate><atom:link href="/tags/lubridate/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Plotting Strava Data</title>
+      <link>/2022/01/01/plotting-strava-data/</link>
+      <pubDate>Sat, 01 Jan 2022 00:00:00 +0000</pubDate>
+      
+      <guid>/2022/01/01/plotting-strava-data/</guid>
+      <description>What is this?As an avid sportman, lover of data metrics and a user of R, I decided that the best way to relax over the holidays was to try graphing my running and riding stats from the last year. I’ll let you decide if it’s a worthwhile holiday activity or not. After a bit of work getting the data and then mucking around with the graphs I thought to make the work available for any other hobbyist in this particular niche.</description>
+    </item>
+    
+  </channel>
+</rss>

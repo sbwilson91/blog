@@ -2,9 +2,9 @@
 title: "Plotting Strava Data"
 author: "Sean Wilson"
 date: "`r Sys.Date()`"
-output:
-  rmdformats::readthedown:
-    highlight: kate
+#output:
+#  rmdformats::readthedown:
+#    highlight: kate
 ---
 
 ```{r setup, include=FALSE}

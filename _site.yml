@@ -1,0 +1,12 @@
+name: "Sean Wilson"
+output_dir: "docs"
+navbar:
+  title: "Graphing Strava Data"
+left:
+  - text: "Home"
+href: index.html
+- text: "Graphing Strava Data"
+href: Plotting_Strava_Data.html
+output:
+  html_document:
+  theme: cosmo
